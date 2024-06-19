@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tic Tac Toe</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+        .board {
+            display: grid;
+            gap: 2px;
+            border: 2px solid #333;
+            background-color: #fff;
+            margin-top: 20px;
+        }
+        .cell {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 40px;
+            cursor: pointer;
+            background-color: #eee;
+            transition: background-color 0.3s;
+        }
+        .cell:hover {
+            background-color: #ddd;
+        }
+        .saved-games {
+            margin-top: 20px;
+        }
+        .saved-game {
+            margin-bottom: 10px;
+            cursor: pointer;
+            padding: 5px;
+            border: 1px solid #ccc;
+            width: 300px;
+            text-align: center;
+        }
+        .saved-game:hover {
+            background-color: #f0f0f0;
+        }
+        .board-size-input {
+            margin-top: 10px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <h1>Tic Tac Toe</h1>
+    <div class="board">
+        <!-- Board cells are generated dynamically based on boardSize -->
+    </div>
+    <p id="message"></p>
+    <button onclick="resetGame()">Reset Game</button>
+
+    <div class="board-size-input">
+        <label for="boardSize">Board Size (3-10): </label>
+        <input type="number" id="boardSize" min="3" max="10" value="3">
+        <button onclick="setBoardSize()">Set Size</button>
+    </div>
+
+    <div class="saved-games">
+        <h2>Saved Games</h2>
+        <div id="savedGames"></div>
+    </div>
+
+    <script>
+        let currentPlayer = 'X';
+        let boardSize = 3; // Default board size
+
+        function initializeBoard() {
+            const boardElement = document.querySelector('.board');
+            boardElement.innerHTML = '';
+
+            // Set the grid template columns and rows based on boardSize
+            boardElement.style.gridTemplateColumns = `repeat(${boardSize}, 100px)`;
+            boardElement.style.gridTemplateRows = `repeat(${boardSize}, 100px)`;
+
+            for (let i = 0; i < boardSize; i++) {
+                for (let j = 0; j < boardSize; j++) {
+                    const cell = document.createElement('div');
+                    cell.classList.add('cell');
+                    cell.dataset.row = i;
+                    cell.dataset.col = j;
+                    cell.onclick = () => makeMove(i, j); // Pass i, j as parameters
+                    boardElement.appendChild(cell);
+                }
+            }
+        }
+
+        // Function to fetch and display saved games
+        function fetchSavedGames() {
+            fetch('http://localhost:3000/saved-games')
+            .then(response => response.json())
+            .then(data => {
+                const savedGamesContainer = document.getElementById('savedGames');
+                savedGamesContainer.innerHTML = '';
+                data.forEach((game, index) => {
+                    const gameElement = document.createElement('div');
+                    gameElement.classList.add('saved-game');
+                    gameElement.textContent = `Save ${index + 1}`;
+                    gameElement.onclick = () => loadSavedGame(index);
+                    savedGamesContainer.appendChild(gameElement);
+                });
+            })
+            .catch(error => console.error('Error fetching saved games:', error));
+        }
+
+        // Function to load a specific saved game
+        function loadSavedGame(index) {
+            fetch(`http://localhost:3000/saved-games/${index}`)
+            .then(response => response.json())
+            .then(data => {
+                boardSize = data.board.length;
+                initializeBoard();
+                updateBoard(data.board);
+                showMessage(`Loaded Save ${index + 1}`);
+            })
+            .catch(error => console.error('Error loading saved game:', error));
+        }
+
+        function makeMove(row, col) {
+            fetch('http://localhost:3000/make-move', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ row, col })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    console.error('Error:', data.error);
+                    showMessage(data.error);
+                } else {
+                    updateBoard(data.board);
+                    if (data.winner) {
+                        showMessage(`Player ${data.winner} wins!`);
+                        fetchSavedGames(); // Refresh saved games list
+                    } else {
+                        currentPlayer = data.currentPlayer;
+                    }
+                }
+            })
+            .catch(error => console.error('Error:', error));
+        }
+
+        function resetGame() {
+            fetch('http://localhost:3000/reset-game', {
+                method: 'POST'
+            })
+            .then(response => response.json())
+            .then(data => {
+                showMessage('Game reset');
+                updateBoard(data.board);
+                currentPlayer = data.currentPlayer;
+                fetchSavedGames(); // Refresh saved games list
+            })
+            .catch(error => console.error('Error resetting game:', error));
+        }
+
+        function updateBoard(board) {
+            const cells = document.querySelectorAll('.cell');
+            cells.forEach(cell => {
+                const row = parseInt(cell.dataset.row);
+                const col = parseInt(cell.dataset.col);
+                cell.innerText = board[row][col] || '';
+            });
+        }
+
+        function showMessage(message) {
+            document.getElementById('message').textContent = message;
+        }
+
+        function setBoardSize() {
+            const newSize = parseInt(document.getElementById('boardSize').value);
+            if (newSize >= 3 && newSize <= 10) {
+                boardSize = newSize;
+                initializeBoard();
+                resetGame(); // Reset the game when board size changes
+            } else {
+                alert('Please enter a board size between 3 and 10.');
+            }
+        }
+
+        // Initial setup
+        initializeBoard();
+        fetchSavedGames();
+    </script>
+</body>
+</html>
